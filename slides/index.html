@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+
+    <title>reveal.js</title>
+
+    <link rel="stylesheet" href="dist/reset.css" />
+    <link rel="stylesheet" href="dist/reveal.css" />
+    <link rel="stylesheet" href="dist/theme/night.css" id="theme" />
+
+    <!-- Theme used for syntax highlighted code -->
+    <link
+      rel="stylesheet"
+      href="plugin/highlight/monokai.css"
+      id="highlight-theme"
+    />
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h3>Hi I'm Jonathan</h3>
+          <p>I'm going to discuss View Through Conversions</p>
+        </section>
+
+        <section>
+          <section>
+            <h2>The Business Problem</h2>
+            <p>
+              Customers of an Account Based Marketing (ABM) solution were unable
+              to demonstrate the effectiveness of their campaigns internally
+            </p>
+          </section>
+          <section>
+            <h3>Why?</h3>
+            <p>
+              Even though the stakeholder may be an advocate for our product,
+              they often struggled to rationalize the cost of our solution to
+              decision makers in their company
+            </p>
+          </section>
+          <section>
+            <h3>What Happened</h3>
+            <p class="fragment">
+              High churn rates for happy and engaged customers
+            </p>
+            <p class="fragment">
+              Effective use of the product required additional effort to analyze
+              their campaigns
+            </p>
+            <p class="fragment">
+              No one really knew how their campaigns were performing
+            </p>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>The Solution</h3>
+            <p class="fragment">More data!</p>
+          </section>
+          <section>
+            <h3>View Through Conversions</h3>
+            <p>
+              A metric which shows how many users saw your ad, but did not click
+            </p>
+          </section>
+          <section>
+            <h3>How Does This Help?</h3>
+            <h5 class="fragment">Story time:</h5>
+            <p class="fragment">
+              Our sales and marketing team select Umbrella Corp as a Tier 1
+              target for Q4
+            </p>
+            <p class="fragment">
+              Prior to engaging directly, they initiate a brand awareness
+              campaign on Terminus to familiarize decision makers with our brand
+            </p>
+          </section>
+          <section>
+            <p>
+              Terminus uses their account graph to build a target audience, we
+              set a target budget and we start serving ads prior to direct
+              contact
+            </p>
+          </section>
+          <section>
+            <p>Time passes...</p>
+            <div class="fragment">
+              <p>...and Sales closes the account</p>
+              <p>🎉🎉🎉</p>
+            </div>
+            <img class="fragment" src="./public/always-be-closing.gif" />
+          </section>
+          <section>
+            <p>Sales is stoked, they hit their numbers</p>
+            <img class="fragment" src="./public/much-rejoicing.gif" />
+          </section>
+          <section>
+            <p>But what about Marketing?</p>
+            <p class="fragment">
+              How can they demonstrate the ROI for their ad campaign if the
+              opportunity belongs to Sales?
+            </p>
+          </section>
+          <section>
+            <p>Enter View Through Conversions</p>
+            <p class="fragment">
+              View through conversions allow Marketers to take credit for
+              helping the opportunity move through the sales funnel...
+            </p>
+            <p class="fragment">
+              ...by tying ad impressions back to the Opportunity in Salesforce
+            </p>
+          </section>
+          <section>
+            <p>
+              Many more details as to how that works, but let's focus on how we
+              delivered VTCs
+            </p>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>The Planning Phase</h3>
+          </section>
+
+          <section>
+            <h3>Engineering Challenges</h3>
+            <p class="fragment">
+              Tie impressions data back to Accounts through several dimensions
+            </p>
+            <small class="fragment"
+              >Namely, time, creative, job function, and more</small
+            >
+            <p class="fragment">
+              Make the data available retroactively and on-demand
+            </p>
+            <p class="fragment">
+              Allow customers to configure page views as conversions
+            </p>
+          </section>
+
+          <section>
+            <h3>Business Challenges</h3>
+            <p class="fragment">Do not use a third party data warehouse</p>
+            <p class="fragment">
+              Many internal stakeholders were not in agreement on the definition
+              of VTC
+            </p>
+            <p class="fragment">Poorly defined domain objects</p>
+            <p class="fragment">Do it fast, cheap and correct</p>
+
+            <aside class="notes">
+              Lots of nuance here, as the metric is an intersection of a number
+              of data types
+            </aside>
+          </section>
+
+          <section>
+            <h3>Things We Had Going For Us</h3>
+            <p class="fragment">
+              Impression data pipeline was reliable and Hive-formatted
+            </p>
+            <p class="fragment">AWS had recently launched their Glue service</p>
+            <p class="fragment">
+              We already had well-formed <code>CookieClusters</code> which tied
+              pools of unique cookies to their accounts
+            </p>
+            <p class="fragment">Storage is cheap</p>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>The Domain</h2>
+          </section>
+
+          <section>
+            <h3><code>ConversionSegments</code></h3>
+            <p>
+              A user-defined conversion event, and all data in its neighborhood
+            </p>
+          </section>
+
+          <section>
+            <h3>Data Structure</h3>
+            <pre
+              data-id="code-animation"
+            ><code class="protobuf" data-trim data-line-numbers>
+              message ConversionSegment {
+                // details the account (buying unit) that we are targeting
+                message Account {
+                  required bytes uuid = 1;
+                  string domain = 2;
+                }
+
+                // ties a person in our system with their cookie identifier(s)
+                message Person {
+                  required bytes uuid = 1;
+                  repeated required bytes cookieId = 2;
+                  string email = 3;
+                }
+
+                // the specific event which made this a conversion
+                // e.g. user views a "whitepaper download success" page
+                message Conversion {
+                  required bytes id = 1;
+                  required string url = 2;
+                  required string eventUTC = 3;
+                }
+
+                // all of the page views leading up to the conversion in a session
+                message View {
+                  required string url = 1;
+                  required string eventUTC = 2;
+                }
+                repeated View views = 1;
+
+                message Impression {
+                  required bytes creativeId = 1; // i.e. the specific ad that they saw
+                  required bytes tacticId = 2;
+                  required bytes cookieId = 3; // expected to change over time for an individual
+                  required string eventUTC = 4;
+                }
+                repeated Impression impressions = 2;
+
+                // also clicks, but we've only got so much time...
+              }
+            </code></pre>
+
+            <aside class="notes">
+              <p>Prepared from memory and condensed</p>
+              <p>
+                Lots of duplication here, but as mentioned preivously, storage
+                is cheap
+              </p>
+            </aside>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Preparation</h2>
+          </section>
+
+          <section>
+            <p>Impression data came in a routine cadence from our ad vendor</p>
+
+            <p class="fragment">
+              <code>Account/CookieCluster</code> mapping was done when ingesting
+              new cookies from our data provider
+            </p>
+
+            <p class="fragment">
+              Page view data was already available to us as an artifact from
+              another service's data processing
+            </p>
+          </section>
+
+          <section>
+            <p>
+              Why didn't you stand up a big SQL database and throw queries at
+              it?
+            </p>
+
+            <p class="fragment">
+              Scale of the data was too large to make that economical
+            </p>
+
+            <div class="fragment">
+              <ul>
+                <li>~1 Billion Cookies</li>
+                <li>~300k Accounts</li>
+                <li>~200 Million Cookie Clusters</li>
+                <li>~1 GB of new impression data daily</li>
+              </ul>
+            </div>
+
+            <small class="fragment">* if memory serves</small>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Our Solution</h2>
+          </section>
+
+          <section>
+            <p>Our ethos was to treat every impression and page view as a data point in a potential
+            conversion</p>
+
+            <p class="fragment">We already had to process all of the data in a <code>ConversionSegment</code>
+            to support the baseline product</p>
+
+            <p class="fragment">Adding additional data sinks to this process had a negligible effect on our
+            cost per event processed</p>
+          </section>
+
+          <section>
+            <p>By exposing the "data neighborhood" to the rest of the system, we were able to create a more
+            flexible framework on top of which new products and services could be realized</p>
+          </section>
+
+          <section>
+            <p>Always look for solutions that give you leverage</p>
+            <aside class="notes">Moral of the story/My core ethos</aside>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Outcomes</h2>
+          </section>
+
+          <section>
+            <p>Planning phase was very important here as we created a more concise language for thinking about
+            the lifecycle of an ad</p>
+
+            <p class="fragment">Biggest gotcha was creating a constant time pattern matcher for user-defined conversions (with
+            wildcards)</p>
+
+            <p class="fragment">Product loved it, as it gave them a centralized, fact-based data model that
+            they could create new functionality on top of</p>
+          </section>
+
+          <section>
+            <p>We were able to release to our internal marketers on schedule, but release to
+            our beta group was a few weeks later than expected, but within the timeframe allowed</p>
+
+            <p class="fragment">The entire planning &amp; development lifecycle was right around 3 months
+            (including the "go or no go" decisions)</p>
+          </section>
+        </section>
+
+        <section><h2>Questions?</h2></section>
+      </div>
+    </div>
+
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script>
+      // More info about initialization & config:
+      // - https://revealjs.com/initialization/
+      // - https://revealjs.com/config/
+      Reveal.initialize({
+        hash: true,
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [RevealMarkdown, RevealHighlight, RevealNotes],
+      });
+    </script>
+  </body>
+</html>
